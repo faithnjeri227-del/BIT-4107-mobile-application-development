@@ -214,7 +214,7 @@ fun PocketMoneyScreen(viewModel: StudentViewModel) {
             Text("Send Money")
         }
 
-        Divider(modifier = Modifier.padding(vertical = 16.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
         
         Text("Recent Transactions", style = MaterialTheme.typography.titleMedium)
         LazyColumn {

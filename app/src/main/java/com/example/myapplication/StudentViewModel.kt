@@ -46,7 +46,7 @@ class StudentViewModel : ViewModel() {
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList<ExamResult>()
+        initialValue = emptyList()
     )
 
     fun updateSelectedSciences(sciences: List<String>) {
@@ -55,11 +55,11 @@ class StudentViewModel : ViewModel() {
 
     private val _fees = MutableStateFlow(
         listOf(
-            Fee("Tuition Fee - Q1", 1200.0, "2023-10-15", true),
-            Fee("Bus Fee - Q1", 200.0, "2023-10-20", false),
-            Fee("Library Fee", 50.0, "2023-11-01", false),
-            Fee("Accommodation Fee", 500.0, "2023-11-05", false),
-            Fee("Medical Fee", 100.0, "2023-11-10", false)
+            Fee("Tuition Fee - Q1", 1200.0, "2023-10-15", isPaid = true),
+            Fee("Bus Fee - Q1", 200.0, "2023-10-20", isPaid = false),
+            Fee("Library Fee", 50.0, "2023-11-01", isPaid = false),
+            Fee("Accommodation Fee", 500.0, "2023-11-05", isPaid = false),
+            Fee("Medical Fee", 100.0, "2023-11-10", isPaid = false)
         )
     )
     val fees: StateFlow<List<Fee>> = _fees.asStateFlow()
