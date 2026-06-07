@@ -11,46 +11,78 @@ class StudentViewModel : ViewModel() {
     val student: StateFlow<Student> = _student.asStateFlow()
 
     private val _allExamResults = MutableStateFlow(
-        mapOf(
-            "English" to ExamResult("English", 85, 100, "A"),
-            "Kiswahili" to ExamResult("Kiswahili", 90, 100, "A"),
-            "French" to ExamResult("French", 78, 100, "B"),
-            "Mathematics" to ExamResult("Mathematics", 85, 100, "A"),
-            "Biology" to ExamResult("Biology", 82, 100, "A"),
-            "Chemistry" to ExamResult("Chemistry", 75, 100, "B"),
-            "Physics" to ExamResult("Physics", 88, 100, "A"),
-            "Social Studies" to ExamResult("Social Studies", 90, 100, "A"),
-            "History" to ExamResult("History", 92, 100, "A+"),
-            "Business Studies" to ExamResult("Business Studies", 84, 100, "A"),
-            "Computer Studies" to ExamResult("Computer Studies", 95, 100, "A+")
+        listOf(
+            // End Term
+            ExamResult("English", 85, 100, "A", "End Term"),
+            ExamResult("Kiswahili", 88, 100, "A", "End Term"),
+            ExamResult("French", 75, 100, "B", "End Term"),
+            ExamResult("Mathematics", 92, 100, "A", "End Term"),
+            ExamResult("Biology", 80, 100, "A", "End Term"),
+            ExamResult("Chemistry", 70, 100, "C", "End Term"),
+            ExamResult("Physics", 85, 100, "A", "End Term"),
+            ExamResult("Social Studies", 90, 100, "A", "End Term"),
+            ExamResult("History", 95, 100, "A+", "End Term"),
+            ExamResult("Business Studies", 88, 100, "A", "End Term"),
+            ExamResult("Computer Studies", 98, 100, "A+", "End Term"),
+            
+            // Midterm
+            ExamResult("English", 78, 100, "B", "Midterm"),
+            ExamResult("Kiswahili", 90, 100, "A", "Midterm"),
+            ExamResult("French", 70, 100, "C", "Midterm"),
+            ExamResult("Mathematics", 85, 100, "A", "Midterm"),
+            ExamResult("Biology", 82, 100, "A", "Midterm"),
+            ExamResult("Chemistry", 75, 100, "B", "Midterm"),
+            ExamResult("Physics", 80, 100, "A", "Midterm"),
+            ExamResult("Social Studies", 85, 100, "A", "Midterm"),
+            ExamResult("History", 92, 100, "A+", "Midterm"),
+            ExamResult("Business Studies", 80, 100, "A", "Midterm"),
+            ExamResult("Computer Studies", 95, 100, "A+", "Midterm"),
+            
+            // CAT
+            ExamResult("English", 45, 50, "A", "CAT"),
+            ExamResult("Kiswahili", 40, 50, "B", "CAT"),
+            ExamResult("French", 35, 50, "C", "CAT"),
+            ExamResult("Mathematics", 48, 50, "A+", "CAT"),
+            ExamResult("Biology", 42, 50, "A", "CAT"),
+            ExamResult("Chemistry", 38, 50, "B", "CAT"),
+            ExamResult("Physics", 45, 50, "A", "CAT"),
+            ExamResult("Social Studies", 44, 50, "A", "CAT"),
+            ExamResult("History", 47, 50, "A+", "CAT"),
+            ExamResult("Business Studies", 41, 50, "B", "CAT"),
+            ExamResult("Computer Studies", 49, 50, "A+", "CAT")
         )
     )
 
     val examResults: StateFlow<List<ExamResult>> = combine(_student, _allExamResults) { student, allResults ->
-        val results = mutableListOf<ExamResult>()
-        results.add(allResults["English"]!!)
-        results.add(allResults["Kiswahili"]!!)
-        results.add(allResults["French"]!!)
-        results.add(allResults["Mathematics"]!!)
-        
-        // Add selected sciences
-        student.selectedSciences.forEach { science ->
-            allResults[science]?.let { results.add(it) }
+        val sciences = listOf("Biology", "Chemistry", "Physics")
+        allResults.filter { result ->
+            if (sciences.contains(result.subject)) {
+                student.selectedSciences.contains(result.subject)
+            } else {
+                true
+            }
         }
-        
-        results.add(allResults["Social Studies"]!!)
-        results.add(allResults["History"]!!)
-        results.add(allResults["Business Studies"]!!)
-        results.add(allResults["Computer Studies"]!!)
-        results
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
 
+    private val _notifications = MutableStateFlow(
+        listOf(
+            Notification("1", "Mid-Term Results Out", "The mid-term exam results have been published. Please review them in the Results tab.", "2024-03-10", "Academic"),
+            Notification("2", "Fee Reminder", "The tuition fee for Q2 is due in 5 days.", "2024-03-12", "Fee"),
+            Notification("3", "Parent-Teacher Meeting", "There will be a meeting on Saturday at 10:00 AM in the school hall.", "2024-03-15", "General")
+        )
+    )
+    val notifications: StateFlow<List<Notification>> = _notifications.asStateFlow()
+
     fun updateSelectedSciences(sciences: List<String>) {
         _student.value = _student.value.copy(selectedSciences = sciences)
+    }
+
+    fun updateStudentInfo(name: String, id: String) {
+        _student.value = _student.value.copy(name = name, id = id)
     }
 
     private val _fees = MutableStateFlow(

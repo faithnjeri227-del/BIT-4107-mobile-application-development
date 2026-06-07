@@ -12,7 +12,8 @@ data class ExamResult(
     val subject: String,
     val score: Int,
     val totalMarks: Int,
-    val grade: String
+    val grade: String,
+    val examType: String // e.g., "End Term", "CAT", "Midterm"
 )
 
 data class Fee(
@@ -26,4 +27,12 @@ data class PocketMoneyTransaction(
     val amount: Double,
     val date: String,
     val note: String
+)
+
+data class Notification(
+    val id: String,
+    val title: String,
+    val message: String,
+    val date: String,
+    val type: String // "Academic", "Fee", "General"
 )
