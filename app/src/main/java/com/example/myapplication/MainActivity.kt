@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -45,8 +47,30 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Preview(showBackground = true)
+@Composable
+fun StudentEntryScreenPreview() {
+    MyApplicationTheme {
+        StudentEntryScreenContent(
+            onUpdateStudentInfo = { _, _ -> },
+            onContinue = {}
+        )
+    }
+}
+
 @Composable
 fun StudentEntryScreen(viewModel: StudentViewModel, onContinue: () -> Unit) {
+    StudentEntryScreenContent(
+        onUpdateStudentInfo = { name, admission -> viewModel.updateStudentInfo(name, admission) },
+        onContinue = onContinue
+    )
+}
+
+@Composable
+fun StudentEntryScreenContent(
+    onUpdateStudentInfo: (String, String) -> Unit,
+    onContinue: () -> Unit
+) {
     var name by remember { mutableStateOf("") }
     var admission by remember { mutableStateOf("") }
 
@@ -147,7 +171,7 @@ fun StudentEntryScreen(viewModel: StudentViewModel, onContinue: () -> Unit) {
                     Button(
                         onClick = {
                             if (name.isNotBlank() && admission.isNotBlank()) {
-                                viewModel.updateStudentInfo(name, admission)
+                                onUpdateStudentInfo(name, admission)
                                 onContinue()
                             }
                         },
@@ -170,8 +194,8 @@ fun StudentEntryScreen(viewModel: StudentViewModel, onContinue: () -> Unit) {
 @Composable
 fun ParentAppMainScreen(viewModel: StudentViewModel = viewModel()) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Results", "Fees", "Pocket Money", "Notifications")
-    val icons = listOf(Icons.Default.Assessment, Icons.Default.Payments, Icons.Default.AccountBalanceWallet, Icons.Default.Notifications)
+    val tabs = listOf("Results", "Fees", "Pocket Money", "Notifications", "Community")
+    val icons = listOf(Icons.Default.Assessment, Icons.Default.Payments, Icons.Default.AccountBalanceWallet, Icons.Default.Notifications, Icons.Default.Groups)
 
     Scaffold(
         topBar = {
@@ -204,6 +228,7 @@ fun ParentAppMainScreen(viewModel: StudentViewModel = viewModel()) {
                 1 -> FeesScreen(viewModel)
                 2 -> PocketMoneyScreen(viewModel)
                 3 -> NotificationsScreen(viewModel)
+                4 -> UsersScreen(viewModel)
             }
         }
     }
@@ -279,6 +304,7 @@ fun StudentInfoCard(viewModel: StudentViewModel) {
 fun ExamResultsScreen(viewModel: StudentViewModel) {
     val results by viewModel.examResults.collectAsState()
     val student by viewModel.student.collectAsState()
+    val searchQuery by viewModel.examSearchQuery.collectAsState()
     val sciences = listOf("Biology", "Chemistry", "Physics")
     
     val groupedResults = results.groupBy { it.examType }
@@ -286,10 +312,27 @@ fun ExamResultsScreen(viewModel: StudentViewModel) {
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
-            Text(
-                "Exam Results",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(vertical = 8.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Exam Results",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            }
+        }
+
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.updateExamSearchQuery(it) },
+                label = { Text("Search Subject") },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
         }
 
@@ -320,7 +363,9 @@ fun ExamResultsScreen(viewModel: StudentViewModel) {
             }
         }
 
-        examTypesOrder.forEach { examType ->
+        val allExamTypes = (examTypesOrder + (groupedResults.keys - examTypesOrder.toSet())).distinct()
+
+        allExamTypes.forEach { examType ->
             val typeResults = groupedResults[examType]
             if (!typeResults.isNullOrEmpty()) {
                 item {
@@ -333,64 +378,47 @@ fun ExamResultsScreen(viewModel: StudentViewModel) {
                     )
                 }
                 
-                items(typeResults) { result ->
+                item {
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(text = result.subject, fontWeight = FontWeight.Bold)
-                                Text(text = "Score: ${result.score}/${result.totalMarks}", style = MaterialTheme.typography.bodyMedium)
-                            }
-                            Text(
-                                text = result.grade,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Handle any other types not in our preferred order
-        groupedResults.keys.filter { it !in examTypesOrder }.forEach { examType ->
-            val typeResults = groupedResults[examType]!!
-            item {
-                Text(
-                    text = examType,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                )
-            }
-            items(typeResults) { result ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
                         Column {
-                            Text(text = result.subject, fontWeight = FontWeight.Bold)
-                            Text(text = "Score: ${result.score}/${result.totalMarks}", style = MaterialTheme.typography.bodyMedium)
+                            // Header
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.primaryContainer)
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Subject", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
+                                Text("Score", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold)
+                                Text("Grade", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                            }
+                            
+                            typeResults.forEachIndexed { index, result ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(result.subject, modifier = Modifier.weight(2f))
+                                    Text("${result.score}/${result.totalMarks}", modifier = Modifier.weight(1.5f))
+                                    Text(
+                                        result.grade, 
+                                        modifier = Modifier.weight(1f),
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                if (index < typeResults.size - 1) {
+                                    HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), thickness = 0.5.dp)
+                                }
+                            }
                         }
-                        Text(
-                            text = result.grade,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
                     }
                 }
             }
@@ -401,69 +429,277 @@ fun ExamResultsScreen(viewModel: StudentViewModel) {
 @Composable
 fun NotificationsScreen(viewModel: StudentViewModel) {
     val notifications by viewModel.notifications.collectAsState()
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        item {
-            Text(
-                "Notifications",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+    val searchQuery by viewModel.notificationSearchQuery.collectAsState()
+    var showAddDialog by remember { mutableStateOf(false) }
+    var notificationToEdit by remember { mutableStateOf<Notification?>(null) }
+
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showAddDialog = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Add Notification")
+            }
         }
-        items(notifications) { notification ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = when(notification.type) {
-                        "Academic" -> MaterialTheme.colorScheme.primaryContainer
-                        "Fee" -> MaterialTheme.colorScheme.secondaryContainer
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    }
+    ) { padding ->
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
+            item {
+                Text(
+                    "Notifications",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(text = notification.title, fontWeight = FontWeight.Bold)
+            }
+            
+            item {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.updateNotificationSearchQuery(it) },
+                    label = { Text("Search Notifications") },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+            }
+
+            items(notifications) { notification ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = when(notification.type) {
+                            "Academic" -> MaterialTheme.colorScheme.primaryContainer
+                            "Fee" -> MaterialTheme.colorScheme.secondaryContainer
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        }
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = notification.title, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            Row {
+                                IconButton(onClick = { notificationToEdit = notification }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp))
+                                }
+                                IconButton(onClick = { viewModel.deleteNotification(notification.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(20.dp))
+                                }
+                            }
+                        }
                         Text(text = notification.date, style = MaterialTheme.typography.bodySmall)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = notification.message, style = MaterialTheme.typography.bodyMedium)
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = notification.message, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
     }
+
+    if (showAddDialog || notificationToEdit != null) {
+        NotificationDialog(
+            notification = notificationToEdit,
+            onDismiss = { 
+                showAddDialog = false
+                notificationToEdit = null
+            },
+            onConfirm = { title, message, type ->
+                if (notificationToEdit != null) {
+                    viewModel.updateNotification(notificationToEdit!!.copy(title = title, message = message, type = type))
+                } else {
+                    viewModel.addNotification(title, message, type)
+                }
+                showAddDialog = false
+                notificationToEdit = null
+            }
+        )
+    }
+}
+
+@Composable
+fun NotificationDialog(
+    notification: Notification? = null,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit
+) {
+    var title by remember { mutableStateOf(notification?.title ?: "") }
+    var message by remember { mutableStateOf(notification?.message ?: "") }
+    var type by remember { mutableStateOf(notification?.type ?: "General") }
+    val types = listOf("Academic", "Fee", "General")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (notification == null) "Add Notification" else "Edit Notification") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title") },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                )
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = { message = it },
+                    label = { Text("Message") },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                )
+                Text("Type:", modifier = Modifier.padding(top = 8.dp))
+                types.forEach { t ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = type == t, onClick = { type = t })
+                        Text(t, modifier = Modifier.clickable { type = t })
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(title, message, type) },
+                enabled = title.isNotBlank() && message.isNotBlank()
+            ) {
+                Text("Confirm")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
 fun FeesScreen(viewModel: StudentViewModel) {
     val fees by viewModel.fees.collectAsState()
+    var selectedFeeForPayment by remember { mutableStateOf<Fee?>(null) }
+    var showPaymentDialog by remember { mutableStateOf(false) }
+
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        item { Text("School Fees", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(vertical = 8.dp)) }
-        items(fees) { fee ->
-            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(text = fee.title, fontWeight = FontWeight.Bold)
-                        Text(text = "Amount: $${fee.amount}")
-                        Text(text = "Due: ${fee.dueDate}", fontSize = 12.sp)
+        item {
+            Text(
+                "School Fees",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column {
+                    // Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Fee Title", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
+                        Text("Amount", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold)
+                        Text("Action", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
                     }
-                    if (fee.isPaid) {
-                        Text("PAID", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    } else {
-                        Button(onClick = { viewModel.payFee(fee) }) {
-                            Text("Pay Now")
+                    
+                    fees.forEachIndexed { index, fee ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(2f)) {
+                                Text(fee.title, fontWeight = FontWeight.Medium)
+                                Text("Due: ${fee.dueDate}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text("$${fee.amount}", modifier = Modifier.weight(1.2f))
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (fee.isPaid) {
+                                    Column {
+                                        Text(
+                                            "PAID", 
+                                            color = MaterialTheme.colorScheme.primary, 
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        fee.paymentMethod?.let {
+                                            Text(
+                                                "via $it",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = { 
+                                            selectedFeeForPayment = fee
+                                            showPaymentDialog = true
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text("Pay", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                        if (index < fees.size - 1) {
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), thickness = 0.5.dp)
                         }
                     }
                 }
             }
         }
     }
+
+    if (showPaymentDialog && selectedFeeForPayment != null) {
+        PaymentMethodDialog(
+            fee = selectedFeeForPayment!!,
+            onDismiss = { showPaymentDialog = false },
+            onPaymentMethodSelected = { method ->
+                viewModel.payFee(selectedFeeForPayment!!, method)
+                showPaymentDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun PaymentMethodDialog(
+    fee: Fee,
+    onDismiss: () -> Unit,
+    onPaymentMethodSelected: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Payment Method") },
+        text = {
+            Column {
+                Text("Total Amount: $${fee.amount}", style = MaterialTheme.typography.bodyLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                ListItem(
+                    headlineContent = { Text("M-Pesa") },
+                    leadingContent = { Icon(Icons.Default.Smartphone, contentDescription = null) },
+                    modifier = Modifier.clickable { onPaymentMethodSelected("M-Pesa") }
+                )
+                ListItem(
+                    headlineContent = { Text("Bank Transfer") },
+                    leadingContent = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
+                    modifier = Modifier.clickable { onPaymentMethodSelected("Bank") }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
@@ -511,6 +747,72 @@ fun PocketMoneyScreen(viewModel: StudentViewModel) {
                     supportingContent = { Text("${tx.date} - ${tx.note}") },
                     leadingContent = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = null) }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun UsersScreen(viewModel: StudentViewModel) {
+    val users by viewModel.users.collectAsState()
+    val isLoading by viewModel.isLoadingUsers.collectAsState()
+
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                "School Community",
+                style = MaterialTheme.typography.headlineSmall
+            )
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            } else {
+                IconButton(onClick = { viewModel.fetchUsers() }) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                }
+            }
+        }
+
+        if (users.isEmpty() && !isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No users found")
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(users) { user ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        ListItem(
+                            headlineContent = { Text(user.name, fontWeight = FontWeight.Bold) },
+                            supportingContent = { 
+                                Column {
+                                    Text(user.email)
+                                    Text("Company: ${user.companyName}", style = MaterialTheme.typography.bodySmall)
+                                }
+                            },
+                            leadingContent = { 
+                                Surface(
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = user.name.take(1),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
     }
