@@ -286,7 +286,6 @@ fun StudentInfoCard(viewModel: StudentViewModel) {
             confirmButton = {
                 Button(onClick = {
                     viewModel.updateStudentInfo(name, admission)
-                    showEditDialog = false
                 }) {
                     Text("Save")
                 }
