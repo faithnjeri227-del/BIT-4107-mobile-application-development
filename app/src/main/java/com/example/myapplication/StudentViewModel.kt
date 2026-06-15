@@ -10,6 +10,8 @@ import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
 class StudentViewModel : ViewModel() {
+    private val baseUrl = NetworkConfig.BASE_URL
+
     private val _student = MutableStateFlow(
         Student("1", "John Doe", "Form 4", "Highland High School", listOf("Biology", "Chemistry"))
     )
@@ -29,19 +31,30 @@ class StudentViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             _isLoadingUsers.value = true
             try {
-                val url = URL("https://jsonplaceholder.typicode.com/users")
+                val url = URL("${baseUrl}users.json")
                 val connection = url.openConnection() as HttpsURLConnection
                 val text = connection.inputStream.bufferedReader().use { it.readText() }
+                
+                if (text == "null") {
+                    _users.value = emptyList()
+                    return@launch
+                }
+                
                 val jsonArray = JSONArray(text)
                 val userList = mutableListOf<User>()
                 for (i in 0 until jsonArray.length()) {
                     val obj = jsonArray.getJSONObject(i)
                     userList.add(
                         User(
-                            id = obj.getInt("id"),
-                            name = obj.getString("name"),
-                            email = obj.getString("email"),
-                            companyName = obj.getJSONObject("company").getString("name")
+                            id = if (obj.has("id")) obj.getInt("id") else i,
+                            name = obj.optString("name", "Unknown"),
+                            email = obj.optString("email", ""),
+                            companyName = if (obj.has("company")) {
+                                val company = obj.getJSONObject("company")
+                                company.optString("name", "")
+                            } else if (obj.has("companyName")) {
+                                obj.optString("companyName", "")
+                            } else ""
                         )
                     )
                 }
