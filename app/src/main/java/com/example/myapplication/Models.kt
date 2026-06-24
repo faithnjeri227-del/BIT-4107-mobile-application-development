@@ -20,7 +20,8 @@ data class Fee(
     val title: String,
     val amount: Double,
     val dueDate: String,
-    val isPaid: Boolean
+    val isPaid: Boolean,
+    val paymentMethod: String? = null
 )
 
 data class PocketMoneyTransaction(
@@ -35,4 +36,11 @@ data class Notification(
     val message: String,
     val date: String,
     val type: String // "Academic", "Fee", "General"
+)
+
+data class User(
+    val id: Int,
+    val name: String,
+    val email: String,
+    val companyName: String
 )

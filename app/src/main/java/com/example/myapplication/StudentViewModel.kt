@@ -2,13 +2,70 @@ package com.example.myapplication
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import org.json.JSONArray
+import java.net.URL
+import javax.net.ssl.HttpsURLConnection
 
 class StudentViewModel : ViewModel() {
+    private val baseUrl = NetworkConfig.BASE_URL
+
     private val _student = MutableStateFlow(
         Student("1", "John Doe", "Form 4", "Highland High School", listOf("Biology", "Chemistry"))
     )
     val student: StateFlow<Student> = _student.asStateFlow()
+
+    private val _users = MutableStateFlow<List<User>>(emptyList())
+    val users: StateFlow<List<User>> = _users.asStateFlow()
+
+    private val _isLoadingUsers = MutableStateFlow(false)
+    val isLoadingUsers: StateFlow<Boolean> = _isLoadingUsers.asStateFlow()
+
+    init {
+        fetchUsers()
+    }
+
+    fun fetchUsers() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isLoadingUsers.value = true
+            try {
+                val url = URL("${baseUrl}users.json")
+                val connection = url.openConnection() as HttpsURLConnection
+                val text = connection.inputStream.bufferedReader().use { it.readText() }
+                
+                if (text == "null") {
+                    _users.value = emptyList()
+                    return@launch
+                }
+                
+                val jsonArray = JSONArray(text)
+                val userList = mutableListOf<User>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    userList.add(
+                        User(
+                            id = if (obj.has("id")) obj.getInt("id") else i,
+                            name = obj.optString("name", "Unknown"),
+                            email = obj.optString("email", ""),
+                            companyName = if (obj.has("company")) {
+                                val company = obj.getJSONObject("company")
+                                company.optString("name", "")
+                            } else if (obj.has("companyName")) {
+                                obj.optString("companyName", "")
+                            } else ""
+                        )
+                    )
+                }
+                _users.value = userList
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoadingUsers.value = false
+            }
+        }
+    }
 
     private val _allExamResults = MutableStateFlow(
         listOf(
@@ -39,33 +96,18 @@ class StudentViewModel : ViewModel() {
             ExamResult("Computer Studies", 95, 100, "A+", "Midterm"),
             
             // CAT
-            ExamResult("English", 45, 50, "A", "CAT"),
-            ExamResult("Kiswahili", 40, 50, "B", "CAT"),
-            ExamResult("French", 35, 50, "C", "CAT"),
-            ExamResult("Mathematics", 48, 50, "A+", "CAT"),
-            ExamResult("Biology", 42, 50, "A", "CAT"),
-            ExamResult("Chemistry", 38, 50, "B", "CAT"),
-            ExamResult("Physics", 45, 50, "A", "CAT"),
-            ExamResult("Social Studies", 44, 50, "A", "CAT"),
-            ExamResult("History", 47, 50, "A+", "CAT"),
-            ExamResult("Business Studies", 41, 50, "B", "CAT"),
-            ExamResult("Computer Studies", 49, 50, "A+", "CAT")
+            ExamResult("English", 27, 30, "A", "CAT"),
+            ExamResult("Kiswahili", 24, 30, "B", "CAT"),
+            ExamResult("French", 21, 30, "C", "CAT"),
+            ExamResult("Mathematics", 29, 30, "A+", "CAT"),
+            ExamResult("Biology", 25, 30, "A", "CAT"),
+            ExamResult("Chemistry", 23, 30, "B", "CAT"),
+            ExamResult("Physics", 27, 30, "A", "CAT"),
+            ExamResult("Social Studies", 26, 30, "A", "CAT"),
+            ExamResult("History", 28, 30, "A+", "CAT"),
+            ExamResult("Business Studies", 25, 30, "B", "CAT"),
+            ExamResult("Computer Studies", 29, 30, "A+", "CAT")
         )
-    )
-
-    val examResults: StateFlow<List<ExamResult>> = combine(_student, _allExamResults) { student, allResults ->
-        val sciences = listOf("Biology", "Chemistry", "Physics")
-        allResults.filter { result ->
-            if (sciences.contains(result.subject)) {
-                student.selectedSciences.contains(result.subject)
-            } else {
-                true
-            }
-        }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
     )
 
     private val _notifications = MutableStateFlow(
@@ -75,7 +117,62 @@ class StudentViewModel : ViewModel() {
             Notification("3", "Parent-Teacher Meeting", "There will be a meeting on Saturday at 10:00 AM in the school hall.", "2024-03-15", "General")
         )
     )
-    val notifications: StateFlow<List<Notification>> = _notifications.asStateFlow()
+
+    private val _notificationSearchQuery = MutableStateFlow("")
+    val notificationSearchQuery = _notificationSearchQuery.asStateFlow()
+
+    val notifications: StateFlow<List<Notification>> = combine(_notifications, _notificationSearchQuery) { list, query ->
+        if (query.isBlank()) list
+        else list.filter { it.title.contains(query, ignoreCase = true) || it.message.contains(query, ignoreCase = true) }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    private val _examSearchQuery = MutableStateFlow("")
+    val examSearchQuery = _examSearchQuery.asStateFlow()
+
+    fun updateNotificationSearchQuery(query: String) {
+        _notificationSearchQuery.value = query
+    }
+
+    fun updateExamSearchQuery(query: String) {
+        _examSearchQuery.value = query
+    }
+
+    fun addNotification(title: String, message: String, type: String) {
+        val id = System.currentTimeMillis().toString()
+        val newNotification = Notification(id, title, message, "2024-03-25", type)
+        _notifications.value = listOf(newNotification) + _notifications.value
+    }
+
+    fun updateNotification(updated: Notification) {
+        _notifications.value = _notifications.value.map {
+            if (it.id == updated.id) updated else it
+        }
+    }
+
+    fun deleteNotification(id: String) {
+        _notifications.value = _notifications.value.filter { it.id != id }
+    }
+
+    val examResults: StateFlow<List<ExamResult>> = combine(_student, _allExamResults, _examSearchQuery) { student, allResults, query ->
+        val sciences = listOf("Biology", "Chemistry", "Physics")
+        allResults.filter { result ->
+            val matchesScience = if (sciences.contains(result.subject)) {
+                student.selectedSciences.contains(result.subject)
+            } else {
+                true
+            }
+            val matchesSearch = result.subject.contains(query, ignoreCase = true)
+            matchesScience && matchesSearch
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     fun updateSelectedSciences(sciences: List<String>) {
         _student.value = _student.value.copy(selectedSciences = sciences)
@@ -87,7 +184,7 @@ class StudentViewModel : ViewModel() {
 
     private val _fees = MutableStateFlow(
         listOf(
-            Fee("Tuition Fee - Q1", 1200.0, "2023-10-15", isPaid = true),
+            Fee("Tuition Fee - Q1", 1200.0, "2023-10-15", isPaid = true, paymentMethod = "Bank Transfer"),
             Fee("Bus Fee - Q1", 200.0, "2023-10-20", isPaid = false),
             Fee("Library Fee", 50.0, "2023-11-01", isPaid = false),
             Fee("Accommodation Fee", 500.0, "2023-11-05", isPaid = false),
@@ -104,9 +201,9 @@ class StudentViewModel : ViewModel() {
     )
     val transactions: StateFlow<List<PocketMoneyTransaction>> = _transactions.asStateFlow()
 
-    fun payFee(fee: Fee) {
+    fun payFee(fee: Fee, method: String) {
         _fees.value = _fees.value.map {
-            if (it.title == fee.title) it.copy(isPaid = true) else it
+            if (it.title == fee.title) it.copy(isPaid = true, paymentMethod = method) else it
         }
     }
 
